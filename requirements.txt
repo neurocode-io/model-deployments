@@ -1,0 +1,4 @@
+azure-functions
+onnxruntime==1.4.0
+transformers==3.4.0
+black==20.8b1
