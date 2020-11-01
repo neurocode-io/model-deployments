@@ -14,7 +14,7 @@ if len(model_path_list) != 1:
 
 model_path = model_path_list[0]
 
-fast_tokenizer = AutoTokenizer.from_pretrained(model_path, max_len=512)
+fast_tokenizer = AutoTokenizer.from_pretrained(model_path)
 session = InferenceSession(f"{model_path}/german-mask-base-optimized-quantized.onnx")
 
 
