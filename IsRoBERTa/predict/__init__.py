@@ -58,9 +58,7 @@ def fill_mask_onnx(setning):
     mask_token_index = np.where(tokens["input_ids"] == fast_tokenizer.mask_token_id)[1]
     mask_token_logits_onnx1 = token_logits[0, mask_token_index, :]
 
-    score = np.exp(mask_token_logits_onnx1) / np.exp(mask_token_logits_onnx1).sum(
-        -1, keepdims=True
-    )
+    score = np.exp(mask_token_logits_onnx1) / np.exp(mask_token_logits_onnx1).sum(-1, keepdims=True)
 
     top_5_idx = (-score[0]).argsort()[:5]
     top_5_values = score[0][top_5_idx]
@@ -68,8 +66,6 @@ def fill_mask_onnx(setning):
     result = []
 
     for token, s in zip(top_5_idx.tolist(), top_5_values.tolist()):
-        result.append(
-            f"{setning.replace(fast_tokenizer.mask_token, fast_tokenizer.decode([token]))} (score: {s})"
-        )
+        result.append(f"{setning.replace(fast_tokenizer.mask_token, fast_tokenizer.decode([token]))} (score: {s})")
 
     return {"result": result}
