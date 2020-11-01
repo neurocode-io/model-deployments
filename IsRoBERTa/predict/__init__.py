@@ -1,21 +1,40 @@
 import logging
-from pathlib import Path
+import json
 from onnxruntime import InferenceSession
 import numpy as np
+from pathlib import Path
 from transformers import RobertaTokenizerFast
 import azure.functions as func
 
-fast_tokenizer = RobertaTokenizerFast.from_pretrained('model/', max_len=512)
-session = InferenceSession('model/isroberta-mask.onnx')
+
+dir = Path.cwd()
+model_path_list = [str(x) for x in dir.glob("*") if str(x).endswith('model')]
+if len(model_path_list) != 1:
+    raise RuntimeError('Could not find model')
+
+model_path = model_path_list[0]
+
+fast_tokenizer = RobertaTokenizerFast.from_pretrained(model_path, max_len=512)
+session = InferenceSession(f"{model_path}/isroberta-mask-optimized-quantized.onnx")
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     logging.info('Python HTTP trigger function processed a request.')
 
-    req_body = req.get_json()
-    fill_mask_onnx(req_body.get("setning") or "Hann for að <mask>.")
-    
-    
-    return func.HttpResponse(f"Hello, world. This HTTP triggered function executed successfully.")
+    try:
+        req_body = req.get_json()
+    except ValueError:
+        return func.HttpResponse(json.dumps({"error": "Invalid body"}), mimetype="application/json", status_code=400)
+
+    setning = req_body.get("setning")
+    if len(setning) > 420:
+        return func.HttpResponse(json.dumps({"error": "Sentence too long"}), mimetype="application/json", status_code=400)
+
+    if not setning or "<mask>" not in setning:
+        return func.HttpResponse(json.dumps({"error": "<mask> missing in sentence"}), mimetype="application/json", status_code=400)
+
+    result = fill_mask_onnx(setning)
+
+    return func.HttpResponse(json.dumps(result), mimetype='application/json')
 
 
 def fill_mask_onnx(setning):
