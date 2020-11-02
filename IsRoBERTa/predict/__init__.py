@@ -18,7 +18,7 @@ fast_tokenizer = RobertaTokenizerFast.from_pretrained(model_path, max_len=512)
 session = InferenceSession(f"{model_path}/isroberta-mask-optimized-quantized.onnx")
 
 
-def return_response_error(error_given):
+def create_error(error_given: str):
     return func.HttpResponse(
         json.dumps({"error": error_given}),
         mimetype="application/json",
@@ -34,20 +34,20 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     setning = req_query.get("setning")
 
     if setning is None:
-        return_response_error("setning missing")
+        return create_error("setning missing")
 
-    if (setning.count("<mask>") != 1):
-        return_response_error("either <mask> is missing or more than one <mask>"))
+    if setning.count("<mask>") != 1:
+        return create_error("either <mask> is missing or more than one <mask>")
 
     if len(setning) > 512:
-        return_response_error("Sentence too long")
+        return create_error("Sentence too long")
 
     result = fill_mask_onnx(setning)
 
     return func.HttpResponse(json.dumps(result), mimetype="application/json")
 
 
-def fill_mask_onnx(setning):
+def fill_mask_onnx(setning: str):
     tokens = fast_tokenizer(setning, return_tensors="np")
     output = session.run(None, tokens.__dict__["data"])
     token_logits = output[0]
