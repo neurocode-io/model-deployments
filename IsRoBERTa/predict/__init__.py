@@ -18,32 +18,32 @@ fast_tokenizer = RobertaTokenizerFast.from_pretrained(model_path, max_len=512)
 session = InferenceSession(f"{model_path}/isroberta-mask-optimized-quantized.onnx")
 
 
+def return_response_error(error_given):
+    return func.HttpResponse(
+        json.dumps({"error": error_given}),
+        mimetype="application/json",
+        status_code=400,
+    )
+
+
 def main(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Python HTTP trigger function processed a request.")
 
-    try:
-        req_body = req.get_json()
-    except ValueError:
-        return func.HttpResponse(
-            json.dumps({"error": "Invalid body"}),
-            mimetype="application/json",
-            status_code=400,
-        )
+    req_query = req.params
 
-    setning = req_body.get("setning")
-    if len(setning) > 420:
-        return func.HttpResponse(
-            json.dumps({"error": "Sentence too long"}),
-            mimetype="application/json",
-            status_code=400,
-        )
+    setning = req_query.get("setning")
 
-    if not setning or "<mask>" not in setning:
-        return func.HttpResponse(
-            json.dumps({"error": "<mask> missing in sentence"}),
-            mimetype="application/json",
-            status_code=400,
-        )
+    if setning is None:
+        return_response_error("setning missing")
+
+    if setning.count("<mask>") > 1:
+        return_response_error("more than one mask")
+
+    if len(setning) > 512:
+        return_response_error("Sentence too long")
+
+    if "<mask>" not in setning:
+        return_response_error("<mask> missing in sentence")
 
     result = fill_mask_onnx(setning)
 
