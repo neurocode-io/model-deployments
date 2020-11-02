@@ -15,7 +15,7 @@ if len(model_path_list) != 1:
 model_path = model_path_list[0]
 
 fast_tokenizer = AutoTokenizer.from_pretrained(model_path)
-session = InferenceSession(f"{model_path}/german-mask-base-optimized-quantized.onnx")
+session = InferenceSession(f"{model_path}/german-distiled-optimized-quantized.onnx")
 
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
@@ -52,6 +52,10 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
 def fill_mask_onnx(setning):
     tokens = fast_tokenizer(setning, return_tensors="np")
+
+    if "token_type_ids" in tokens:
+        tokens.pop("token_type_ids")
+
     output = session.run(None, tokens.__dict__["data"])
     token_logits = output[0]
 
