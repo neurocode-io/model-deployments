@@ -36,14 +36,11 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     if setning is None:
         return_response_error("setning missing")
 
-    if setning.count("<mask>") > 1:
-        return_response_error("more than one mask")
+    if (setning.count("<mask>") != 1):
+        return_response_error("either <mask> is missing or more than one <mask>"))
 
     if len(setning) > 512:
         return_response_error("Sentence too long")
-
-    if "<mask>" not in setning:
-        return_response_error("<mask> missing in sentence")
 
     result = fill_mask_onnx(setning)
 
