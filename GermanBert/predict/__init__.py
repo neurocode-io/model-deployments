@@ -9,6 +9,7 @@ import azure.functions as func
 
 dir = Path.cwd()
 model_path_list = [str(x) for x in dir.glob("*") if str(x).endswith("model")]
+print(model_path_list)
 if len(model_path_list) != 1:
     raise RuntimeError("Could not find model")
 
