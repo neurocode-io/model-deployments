@@ -1,12 +1,15 @@
 import logging
-from transformers.data.processors import SquadFeatures, squad_convert_examples_to_features
+from transformers.data.processors import (
+    SquadFeatures,
+    squad_convert_examples_to_features,
+)
 from transformers.pipelines import QuestionAnsweringArgumentHandler
 import numpy as np
 from onnxruntime import InferenceSession
 from transformers import AutoTokenizer
 from transformers.tokenization_utils_base import PaddingStrategy
 from pathlib import Path
-import azure.functions as func 
+import azure.functions as func
 
 dir = Path.cwd()
 model_path_list = [str(x) for x in dir.glob("*") if str(x).endswith("model")]
@@ -14,9 +17,10 @@ if len(model_path_list) != 1:
     raise RuntimeError("Could not find model")
 
 model_path_onnx = model_path_list[0]
-squad_model="deepset/roberta-base-squad2"
+squad_model = "deepset/roberta-base-squad2"
 
 fast_tokenizer = AutoTokenizer.from_pretrained(squad_model)
+
 
 def create_error(error_given: str):
     return func.HttpResponse(
@@ -25,10 +29,11 @@ def create_error(error_given: str):
         status_code=400,
     )
 
+
 def main(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Python HTTP trigger function processed a request.")
 
-    body = req.get_json() 
+    body = req.get_json()
 
     if "context" not in body.keys() or "question" not in body.keys():
         return create_error("Question and / or context are missing")
@@ -38,12 +43,9 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
     if question is None or context is None:
         return create_error("Question and / or context are empty")
-    
-    examples_dict={
-        "context": context,
-        "question": question
-    }
-    result=predict_qa(model_path_onnx, fast_tokenizer,examples_dict)
+
+    examples_dict = {"context": context, "question": question}
+    result = predict_qa(model_path_onnx, fast_tokenizer, examples_dict)
 
 
 padding = "longest"
@@ -51,6 +53,7 @@ max_seq_len = 384
 doc_stride = 128
 max_answer_len = 20
 max_question_len = 64
+
 
 def get_examples(example_dict):
     _arg_parser = QuestionAnsweringArgumentHandler()
@@ -71,7 +74,8 @@ def get_features(examples, tokenizer):
                 padding_strategy=PaddingStrategy.MAX_LENGTH.value,
                 is_training=False,
                 tqdm_enabled=False,
-            ) for example in examples
+            )
+            for example in examples
         ]
     else:
         features_list = []
@@ -80,7 +84,9 @@ def get_features(examples, tokenizer):
             question_first = bool(tokenizer.padding_side == "right")
             encoded_inputs = tokenizer(
                 text=example.question_text if question_first else example.context_text,
-                text_pair=example.context_text if question_first else example.question_text,
+                text_pair=example.context_text
+                if question_first
+                else example.question_text,
                 padding=padding,
                 truncation="only_second" if question_first else "only_first",
                 max_length=max_seq_len,
@@ -95,8 +101,10 @@ def get_features(examples, tokenizer):
             num_spans = len(encoded_inputs["input_ids"])
             p_mask = np.asarray(
                 [
-                    [tok != 1 if question_first else 0 for tok in encoded_inputs.sequence_ids(
-                        span_id)]
+                    [
+                        tok != 1 if question_first else 0
+                        for tok in encoded_inputs.sequence_ids(span_id)
+                    ]
                     for span_id in range(num_spans)
                 ]
             )
@@ -104,7 +112,8 @@ def get_features(examples, tokenizer):
             # keep the cls_token unmasked (some models use it to indicate unanswerable questions)
             if tokenizer.cls_token_id:
                 cls_index = np.nonzero(
-                    encoded_inputs["input_ids"] == tokenizer.cls_token_id)
+                    encoded_inputs["input_ids"] == tokenizer.cls_token_id
+                )
                 p_mask[cls_index] = 0
 
             features = []
@@ -163,14 +172,15 @@ def decode(start: np.ndarray, end: np.ndarray, topk: int, max_answer_len: int):
     return start, end, candidates[0, start, end]
 
 
-def predict_qa(model_path_onnx, tokenizer, examples_dict):        
-    examples=get_examples(examples_dict)
-    features_list=get_features(examples, tokenizer)
+def predict_qa(model_path_onnx, tokenizer, examples_dict):
+    examples = get_examples(examples_dict)
+    features_list = get_features(examples, tokenizer)
     all_answers = []
     for features, example in zip(features_list, examples):
         model_input_names = tokenizer.model_input_names + ["input_ids"]
-        fw_args = {k: [feature.__dict__[k] for feature in features]
-                   for k in model_input_names}
+        fw_args = {
+            k: [feature.__dict__[k] for feature in features] for k in model_input_names
+        }
         session = InferenceSession(model_path)
         output = session.run(None, fw_args)
         start = output[0]
@@ -180,8 +190,9 @@ def predict_qa(model_path_onnx, tokenizer, examples_dict):
         answers = []
         for (feature, start_, end_) in zip(features, start, end):
             # Ensure padded tokens & question tokens cannot belong to the set of candidate answers.
-            undesired_tokens = np.abs(
-                np.array(feature.p_mask) - 1) & feature.attention_mask
+            undesired_tokens = (
+                np.abs(np.array(feature.p_mask) - 1) & feature.attention_mask
+            )
 
             # Generate mask
             undesired_tokens_mask = undesired_tokens == 0.0
@@ -192,23 +203,33 @@ def predict_qa(model_path_onnx, tokenizer, examples_dict):
 
             # Normalize logits and spans to retrieve the answer
             start_ = np.exp(
-                start_ - np.log(np.sum(np.exp(start_), axis=-1, keepdims=True)))
-            end_ = np.exp(
-                end_ - np.log(np.sum(np.exp(end_), axis=-1, keepdims=True)))
+                start_ - np.log(np.sum(np.exp(start_), axis=-1, keepdims=True))
+            )
+            end_ = np.exp(end_ - np.log(np.sum(np.exp(end_), axis=-1, keepdims=True)))
 
             # Mask CLS
             start_[0] = end_[0] = 0.0
             starts, ends, scores = decode(
-                start=start_, end=end_, topk=1, max_answer_len=max_answer_len)
+                start=start_, end=end_, topk=1, max_answer_len=max_answer_len
+            )
             if not tokenizer.is_fast:
                 char_to_word = np.array(example.char_to_word_offset)
                 answers += [
                     {
                         "score": score.item(),
-                        "start": np.where(char_to_word == feature.token_to_orig_map[s])[0][0].item(),
-                        "end": np.where(char_to_word == feature.token_to_orig_map[e])[0][-1].item(),
+                        "start": np.where(char_to_word == feature.token_to_orig_map[s])[
+                            0
+                        ][0].item(),
+                        "end": np.where(char_to_word == feature.token_to_orig_map[e])[
+                            0
+                        ][-1].item(),
                         "answer": " ".join(
-                            example.doc_tokens[feature.token_to_orig_map[s]                                               : feature.token_to_orig_map[e] + 1]
+                            example.doc_tokens[
+                                feature.token_to_orig_map[
+                                    s
+                                ] : feature.token_to_orig_map[e]
+                                + 1
+                            ]
                         ),
                     }
                     for s, e, score in zip(starts, ends, scores)
@@ -223,15 +244,28 @@ def predict_qa(model_path_onnx, tokenizer, examples_dict):
                     {
                         "score": score.item(),
                         "start": enc.word_to_chars(
-                            enc.token_to_word(s), sequence_index=1 if question_first else 0)[0],
-                        "end": enc.word_to_chars(enc.token_to_word(e), sequence_index=1 if question_first else 0)[1],
+                            enc.token_to_word(s),
+                            sequence_index=1 if question_first else 0,
+                        )[0],
+                        "end": enc.word_to_chars(
+                            enc.token_to_word(e),
+                            sequence_index=1 if question_first else 0,
+                        )[1],
                         "answer": example.context_text[
-                            enc.word_to_chars(enc.token_to_word(s), sequence_index=1 if question_first else 0)[0]: enc.word_to_chars(enc.token_to_word(e), sequence_index=1 if question_first else 0)[1]],
+                            enc.word_to_chars(
+                                enc.token_to_word(s),
+                                sequence_index=1 if question_first else 0,
+                            )[0] : enc.word_to_chars(
+                                enc.token_to_word(e),
+                                sequence_index=1 if question_first else 0,
+                            )[
+                                1
+                            ]
+                        ],
                     }
                     for s, e, score in zip(starts, ends, scores)
                 ]
-            answers = sorted(
-                answers, key=lambda x: x["score"], reverse=True)[: 1]
+            answers = sorted(answers, key=lambda x: x["score"], reverse=True)[:1]
             all_answers += answers
         if len(all_answers) == 1:
             return all_answers[0]

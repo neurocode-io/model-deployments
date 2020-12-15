@@ -12,6 +12,9 @@ onnxruntime-tools = "^1.5.2"
 azure-functions = "^1.5.0"
 
 
+
+[tool.poetry.dev-dependencies]
+black = {version = "^20.8b1", allow-prereleases = true}
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
