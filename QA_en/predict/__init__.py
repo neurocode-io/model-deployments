@@ -1,3 +1,4 @@
+import logging
 from transformers.data.processors import SquadFeatures, squad_convert_examples_to_features
 from transformers.pipelines import QuestionAnsweringArgumentHandler
 import numpy as np
@@ -24,8 +25,25 @@ def create_error(error_given: str):
         status_code=400,
     )
 
-def main():
-    pass
+def main(req: func.HttpRequest) -> func.HttpResponse:
+    logging.info("Python HTTP trigger function processed a request.")
+
+    body = req.get_json() 
+
+    if "context" not in body.keys() or "question" not in body.keys():
+        return create_error("Question and / or context are missing")
+
+    question = body["question"]
+    context = body["context"]
+
+    if question is None or context is None:
+        return create_error("Question and / or context are empty")
+    
+    examples_dict={
+        "context": context,
+        "question": question
+    }
+    result=predict_qa(model_path_onnx, fast_tokenizer,examples_dict)
 
 
 padding = "longest"
@@ -145,10 +163,7 @@ def decode(start: np.ndarray, end: np.ndarray, topk: int, max_answer_len: int):
     return start, end, candidates[0, start, end]
 
 
-def predict_qa(model_path_onnx, tokenizer, examples_dict):
-    if "context" not in examples_dict.keys() or "question" not in examples_dict.keys():
-        raise RuntimeError("Wrong keys in the given dictionary")
-        
+def predict_qa(model_path_onnx, tokenizer, examples_dict):        
     examples=get_examples(examples_dict)
     features_list=get_features(examples, tokenizer)
     all_answers = []
