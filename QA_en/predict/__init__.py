@@ -2,7 +2,7 @@ import logging
 from transformers import AutoTokenizer
 from pathlib import Path
 import azure.functions as func
-from onnx_utils import predict_qa 
+from onnx_utils import predict_qa
 
 dir = Path.cwd()
 model_path_list = [str(x) for x in dir.glob("*") if str(x).endswith("model")]
