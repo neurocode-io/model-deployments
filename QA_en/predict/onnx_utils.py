@@ -4,7 +4,6 @@ from transformers.data.processors import (
 )
 from transformers.pipelines import QuestionAnsweringArgumentHandler
 import numpy as np
-from onnxruntime import InferenceSession
 from transformers import AutoTokenizer
 from transformers.tokenization_utils_base import PaddingStrategy
 
@@ -33,7 +32,7 @@ def get_features(examples, tokenizer):
         features_list = [
             squad_convert_examples_to_features(
                 examples=[example],
-                tokenizer=self.tokenizer,
+                tokenizer=tokenizer,
                 max_seq_length=max_seq_len,
                 doc_stride=doc_stride,
                 max_query_length=max_question_len,
@@ -138,10 +137,7 @@ def decode(start: np.ndarray, end: np.ndarray, topk: int, max_answer_len: int):
     return start, end, candidates[0, start, end]
 
 
-def predict_qa(model_path, tokenizer, examples_dict):
-    if "context" not in examples_dict.keys() or "question" not in examples_dict.keys():
-        raise RuntimeError("Wrong keys in the given dictionary")
-
+def predict_qa(model_path, tokenizer, examples_dict, session):
     examples = get_examples(examples_dict)
     features_list = get_features(examples, tokenizer)
     all_answers = []
@@ -150,7 +146,6 @@ def predict_qa(model_path, tokenizer, examples_dict):
         fw_args = {
             k: [feature.__dict__[k] for feature in features] for k in model_input_names
         }
-        session = InferenceSession(model_path)
         output = session.run(None, fw_args)
         start = output[0]
         end = output[1]

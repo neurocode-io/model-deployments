@@ -3,6 +3,7 @@ from transformers import AutoTokenizer
 from pathlib import Path
 import azure.functions as func
 from onnx_utils import predict_qa
+from onnxruntime import InferenceSession
 
 dir = Path.cwd()
 model_path_list = [str(x) for x in dir.glob("*") if str(x).endswith("model")]
@@ -14,6 +15,7 @@ squad_model = "deepset/roberta-base-squad2"
 
 fast_tokenizer = AutoTokenizer.from_pretrained(squad_model)
 
+session = InferenceSession(model_path_onnx)
 
 def create_error(error_given: str):
     return func.HttpResponse(
