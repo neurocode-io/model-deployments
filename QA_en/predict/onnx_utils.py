@@ -137,7 +137,7 @@ def decode(start: np.ndarray, end: np.ndarray, topk: int, max_answer_len: int):
     return start, end, candidates[0, start, end]
 
 
-def predict_qa(model_path, tokenizer, examples_dict, session):
+def predict_qa(tokenizer, examples_dict, session):
     examples = get_examples(examples_dict)
     features_list = get_features(examples, tokenizer)
     all_answers = []
