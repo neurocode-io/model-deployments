@@ -5,12 +5,23 @@ import azure.functions as func
 from onnx_utils import predict_qa
 from onnxruntime import InferenceSession
 
-dir = Path.cwd()
+
+# following code does not work
+#dir = Path.cwd()
+#model_path_list = [str(x) for x in dir.glob("*") if str(x).endswith("model")]
+#if len(model_path_list) != 1:
+#    raise RuntimeError("Could not find model")
+
+#model_path_onnx = model_path_list[0]
+
+dir_cwd = Path.cwd()
+dir = dir_cwd.parents[0]
 model_path_list = [str(x) for x in dir.glob("*") if str(x).endswith("model")]
 if len(model_path_list) != 1:
     raise RuntimeError("Could not find model")
 
-model_path_onnx = model_path_list[0]
+model_path_onnx =str(dir)+"/"+"model/"+"roberta-base-squad2.onnx"
+
 squad_model = "deepset/roberta-base-squad2"
 
 fast_tokenizer = AutoTokenizer.from_pretrained(squad_model)
@@ -40,4 +51,4 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         return create_error("Question and / or context are empty")
 
     examples_dict = {"context": context, "question": question}
-    result = predict_qa(model_path_onnx, fast_tokenizer, examples_dict)
+    result = predict_qa(fast_tokenizer, examples_dict, session)
